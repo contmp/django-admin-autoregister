@@ -1,7 +1,7 @@
 from types import ModuleType
 
 from django.contrib import admin
-from django.contrib.admin.util import quote
+from django.contrib.admin.utils import quote
 from django.contrib.admin.views.main import ChangeList
 from django.core.urlresolvers import reverse, NoReverseMatch
 from django.db.models import ForeignKey, OneToOneField, Count
@@ -26,8 +26,7 @@ def _get_admin_change_url(field):
         link_text = u'%s %s' % (related_model.__name__, getattr(obj, field.attname))
 
         try:
-            url = reverse('admin:%s_%s_change' %
-                            (related_model._meta.app_label, related_model._meta.module_name),
+            url = reverse('admin:%s_%s_change' % (related_model._meta.app_label, related_model._meta.module_name),
                           args=[quote(link_args)])
         except NoReverseMatch:
             return link_text
@@ -47,8 +46,7 @@ def _get_admin_changelist_url(source_field_name, target_model, target_field_name
                                   getattr(obj, '%s__count' % source_field_name))
 
         try:
-            url = reverse('admin:%s_%s_changelist' %
-                            (target_model._meta.app_label, target_model._meta.module_name))
+            url = reverse('admin:%s_%s_changelist' % (target_model._meta.app_label, target_model._meta.module_name))
         except NoReverseMatch:
             return link_text
         return u'<a href="%s?%s">%s</a>' % (url, link_cond, link_text)
@@ -76,6 +74,7 @@ def _set_admin_queryset(admin_class, m2m_field_names, exclude_field_names):
     # That's why we are waiting with annotating until the last possible
     # moment, when the counts where already fetched.
     counts = [Count(c, distinct=True) for c in m2m_field_names]
+
     def get_changelist(self, *args, **kwargs):
         def get_results(self, request):
             super(self.__class__, self).get_results(request)
@@ -174,8 +173,13 @@ def autoregister_admin(module, exclude_models=None, model_fields=None,
             admin_class.list_display.append(change_list_url)
 
         # add reversed relations
-        reversed_related_objs = (model._meta.get_all_related_objects() +
-                                 model._meta.get_all_related_many_to_many_objects())
+        reversed_related_objs = [
+                f for f in model._meta.get_fields()
+                if (f.one_to_many or f.one_to_one) and f.auto_created and not f.concrete
+            ] + [
+                f for f in model._meta.get_fields(include_hidden=True)
+                if f.many_to_many and f.auto_created
+            ]
         allowed_reversed_relations = reversed_relations.get(model_name, [])
         for related in reversed_related_objs:
             related_name = related.field.related_query_name()
